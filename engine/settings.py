@@ -131,13 +131,11 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "APPEND_COMPONENTS": {
-        "securitySchemes": {"ApiKeyAuth": {"type": "Bearer", "in": "header", "name": "Authorization"}}
-    },
-    "SECURITY": [
-        {
-            "ApiKeyAuth": [],
+        "securitySchemes": {
+            "BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
         }
-    ],
+    },
+    "SECURITY": [{"BearerAuth": []}],
     "REDOC_UI_SETTINGS": {
         "hideDownloadButton": True,
         "hideLoading": True,

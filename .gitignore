@@ -1,3 +1,50 @@
-.idea
-.venv
-.env*
+# IDE
+.idea/
+.vscode/
+
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# Variáveis de ambiente
+.env
+.env.*
+!.env.example
+
+# Banco de dados local
+db.sqlite3
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Pytest
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Mypy / Ruff / linters
+.mypy_cache/
+.ruff_cache/
+
+# Django
+staticfiles/
+mediafiles/
+media/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
