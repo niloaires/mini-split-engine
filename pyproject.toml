@@ -17,13 +17,20 @@ dependencies = [
     "pytz (>=2026.1.post1,<2027.0)",
     "drf-spectacular (>=0.29.0,<0.30.0)",
     "djangorestframework-simplejwt (>=5.5.1,<6.0.0)",
-    "pytest (>=9.0.2,<10.0.0)"
+    "pytest (>=9.0.2,<10.0.0)",
+    "pytest-cov (>=7.1.0,<8.0.0)"
 ]
 
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "engine.settings"
+python_files = ["tests*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 
 [tool.ruff]
 line-length = 120

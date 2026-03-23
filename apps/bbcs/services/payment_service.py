@@ -40,6 +40,17 @@ class PaymentConflictError(Exception):
     """
 
 
+def _to_json_serializable(data):
+    """
+    Converte um dict com valores Decimal em um dict serializável pelo JSONField do Django.
+
+    validated_data do DRF contém Decimal — o JSONField padrão não os serializa.
+    A conversão via json.dumps/loads com default=str garante que todos os tipos
+    não-nativos sejam representados como strings antes da persistência.
+    """
+    return json.loads(json.dumps(data, default=str))
+
+
 def _compute_payload_hash(payload: dict) -> str:
     """
     Calcula o SHA-256 do payload normalizado.
@@ -141,7 +152,7 @@ def confirm_payment(
             status=PaymentStatusEnum.CAPTURED.code,
             idempotency_key=idempotency_key,
             idempotency_payload_hash=payload_hash,
-            payload=validated_data,
+            payload=_to_json_serializable(validated_data),
         )
 
         LedgerEntry.objects.bulk_create([
