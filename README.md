@@ -197,4 +197,60 @@ python manage.py runserver
 
 ---
 
-> Mais seções serão adicionadas conforme o desenvolvimento avança.
+## Como executar os testes
+
+```bash
+# Ativar o ambiente virtual e rodar todos os testes
+source .venv/bin/activate
+pytest
+
+# Com cobertura
+pytest --cov=apps
+
+# Apenas um módulo
+pytest apps/bbcs/tests.py
+```
+
+---
+
+## Decisões técnicas
+
+### 1. Precisão e arredondamento
+
+Todos os cálculos financeiros usam `Decimal` (módulo `decimal` do Python) com arredondamento explícito via `ROUND_DOWN` (truncamento). Float foi descartado por acumular erros de representação binária — em contextos financeiros isso é inaceitável.
+
+A taxa da plataforma é calculada como:
+
+```
+fee = (gross_amount × fee_rate).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+net_amount = gross_amount − fee
+```
+
+O truncamento favorece o recebedor (evita cobrar centavo extra), o que é a convenção adotada em processadores de pagamento como Stripe e Adyen.
+
+### 2. Regra de centavos no split
+
+Ao distribuir o `net_amount` entre os recebedores, cada parcela é truncada em 2 casas decimais. O centavo residual (diferença entre a soma das parcelas e o `net_amount`) é absorvido pelo **primeiro recebedor da lista**.
+
+**Por quê?** Qualquer estratégia de distribuição de centavo envolve uma escolha arbitrária. O primeiro recebedor foi escolhido por ser determinístico (sem aleatoriedade), auditável (qualquer repetição do cálculo produz o mesmo resultado) e simples de implementar e testar. O README e os testes documentam essa regra explicitamente para que não haja surpresas.
+
+### 3. Estratégia de idempotência
+
+A idempotência é implementada em duas camadas:
+
+- **Camada de serviço:** ao receber uma `Idempotency-Key`, a service busca o `Payment` existente antes de qualquer inserção. Se encontrado, verifica o `idempotency_payload_hash` (SHA-256 do payload normalizado com chaves ordenadas). Hash igual → retorna o pagamento existente. Hash diferente → lança `PaymentConflictError` (HTTP 409).
+- **Camada de banco:** `idempotency_key` tem `unique=True`. Uma `UniqueConstraint` composta entre `idempotency_key` e `idempotency_payload_hash` atua como segunda linha de defesa contra race conditions, garantindo integridade mesmo sob concorrência.
+
+O hash normaliza o payload com `json.dumps(sort_keys=True)` para tornar a comparação independente da ordem de serialização das chaves.
+
+### 4. Métricas que colocaria em produção
+
+| Métrica | Ferramenta sugerida | Por quê |
+|---|---|---|
+| Latência p50/p95/p99 do `POST /api/v1/payments` | Prometheus + Grafana | SLA de pagamentos exige latência baixa e previsível |
+| Taxa de erros 4xx/5xx por endpoint | Prometheus counter | Distingue erros de cliente (400/409/422) de falhas internas (500) |
+| Taxa de hits de idempotência | Contador custom | Indica clientes com retry excessivo ou bugs de integração |
+| Fila de `OutboxEvent` com `status=pending` | Job periódico + alerta | Eventos não publicados indicam falha no worker de mensageria |
+| Tempo de processamento da transação atômica | Histogram | Detecta contenção no banco sob carga |
+
+---
