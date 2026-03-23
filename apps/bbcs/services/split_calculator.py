@@ -176,7 +176,6 @@ def calculate_fee_rate(
     if fee_table is not None:
         return _fee_rate_from_plan(fee_table, payment_method, installments)
 
-    # Fallback — taxas fixas do desafio
     if payment_method == "pix":
         return PIX_FEE_RATE
 

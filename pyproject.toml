@@ -16,7 +16,8 @@ dependencies = [
     "ruff (>=0.15.7,<0.16.0)",
     "pytz (>=2026.1.post1,<2027.0)",
     "drf-spectacular (>=0.29.0,<0.30.0)",
-    "djangorestframework-simplejwt (>=5.5.1,<6.0.0)"
+    "djangorestframework-simplejwt (>=5.5.1,<6.0.0)",
+    "pytest (>=9.0.2,<10.0.0)"
 ]
 
 
