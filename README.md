@@ -50,12 +50,17 @@ mini-split-engine/
 │   │   └── models.py             # CustomUser com auth via e-mail
 │   │
 │   ├── bbcs/                     # Domínio principal do desafio
-│   │   └── models.py             # Payment, LedgerEntry, Plan
+│   │   ├── services/
+│   │   │   └── split_calculator.py  # Cálculo de taxas e split
+│   │   ├── models.py             # Payment, LedgerEntry, Plan
+│   │   ├── serializers.py        # Validação de entrada e serialização de saída
+│   │   └── tests.py              # Testes da calculadora
 │   │
 │   ├── payees/                   # Recebedores do split
 │   │   └── models.py             # Recipient
 │   │
 │   └── audit/                    # Auditoria de operações
+│       └── models.py             # OutboxEvent
 │
 ├── engine/                       # Configurações do projeto Django
 │   ├── settings.py
@@ -64,6 +69,8 @@ mini-split-engine/
 │   └── wsgi.py
 │
 ├── static/                       # Arquivos estáticos
+├── templates/
+│   └── rapidoc.html              # Documentação interativa da API
 ├── manage.py
 ├── pyproject.toml
 └── .env                          # Variáveis de ambiente (não versionado)
@@ -94,6 +101,12 @@ mini-split-engine/
 | Model | Responsabilidade |
 |---|---|
 | `Recipient` | Participante elegível ao split, com papel (`role`), `external_id` como referência na API e dados bancários opcionais |
+
+#### `audit`
+
+| Model | Responsabilidade |
+|---|---|
+| `OutboxEvent` | Evento de domínio persistido atomicamente com o pagamento para publicação assíncrona |
 
 ---
 
@@ -126,6 +139,25 @@ As regras financeiras de cada modalidade de cobrança (débito, crédito, parcel
 ### `Recipient.bank_account` — JSONField por pragmatismo
 
 Os dados bancários do recebedor são armazenados como `JSONField` opcional. Em produção, o correto seria uma tabela `BankAccount` separada com FK para `Recipient`, garantindo rastreabilidade completa de mudanças de conta ao longo do tempo (histórico, auditoria, rollback).
+
+### `recipient_id` no split — string livre vs. entidade cadastrada
+
+No `SplitInputSerializer`, o campo `recipient_id` é atualmente um `CharField` livre, alinhado com o payload de exemplo do desafio (`"producer_1"`, `"affiliate_9"`). O desafio não exige pré-cadastro de recebedores.
+
+Em produção, o correto seria validar o `recipient_id` contra o `external_id` do model `Recipient` via `SlugRelatedField`, garantindo que apenas recebedores cadastrados participem de um split:
+
+```python
+recipient_id = serializers.SlugRelatedField(
+    slug_field="external_id",
+    queryset=Recipient.objects.all(),
+)
+```
+
+Isso adicionaria integridade referencial na camada de entrada, antes de qualquer cálculo ou persistência.
+
+### `OutboxEvent` — padrão Transactional Outbox
+
+Eventos críticos (como `payment_captured`) são persistidos na mesma transação do pagamento. Um worker externo lê os eventos com `status="pending"` e os publica no broker, atualizando para `"published"`. Isso elimina o risco de inconsistência entre banco e mensageria: se a transação falhar, o evento não é criado; se o evento existir, o pagamento foi confirmado.
 
 ### Estratégia de idempotência — `Payment`
 
