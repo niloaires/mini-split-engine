@@ -1,4 +1,5 @@
 import uuid
+
 from django.db import models
 
 
@@ -10,16 +11,16 @@ class ActiveObjects(models.Manager):
     """
 
     def get_queryset(self):
-        return super(ActiveObjects, self).get_queryset().filter(active=True)
+        return super().get_queryset().filter(active=True)
 
 
 class AllObjects(models.Manager):
-    """"
+    """ "
 
     Gerenciador customizado para retornar todos os objetos, independentemente do estado ativo."""
 
     def get_queryset(self):
-        return super(AllObjects, self).get_queryset()
+        return super().get_queryset()
 
 
 class TimeStampedModel(models.Model):
@@ -42,9 +43,7 @@ class TimeStampedModel(models.Model):
         abstract: True — esta classe não gera tabela própria no banco de dados.
     """
 
-    id = models.UUIDField(
-        primary_key=True, default=uuid.uuid4, editable=False, auto_created=True
-    )
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, auto_created=True)
     created_at = models.DateTimeField("Created", auto_now_add=True, auto_now=False)
     updated_at = models.DateTimeField("Updated at", auto_now_add=False, auto_now=True)
     active = models.BooleanField("Active", default=True)
