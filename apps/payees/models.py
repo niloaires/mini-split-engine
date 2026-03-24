@@ -29,7 +29,7 @@ class RecipientRoleEnum(enum.Enum):
 
     PRODUCER = ("Industria", "Indústria")
     DISTRIBUTOR = ("distributor", "Distribuidor")
-    STOREKEEPER = ("coproducer", "Coprodutor")
+    STOREKEEPER = ("revenda", "Revenda")
 
     @property
     def code(self):
