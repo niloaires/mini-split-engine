@@ -180,6 +180,32 @@ Rotas disponíveis:
 | `GET` | `/api/v1/recipients/` | Listar recebedores ativos (paginado) |
 | `GET` | `/api/v1/recipients/{id}/` | Detalhar recebedor pelo ID interno |
 
+### `LoggerEngine` — rastreabilidade nos services
+
+O logger centralizado fica em `apps/core/handlers/logger-engine.py`. Como o nome contém hífen (inválido como identificador Python), ele é exposto via `apps/core/handlers/__init__.py` usando `importlib`, tornando o import transparente para os consumers:
+
+```python
+from apps.core.handlers import LoggerEngine
+logger = LoggerEngine(origin="payment_service")
+```
+
+Cada instância recebe um `origin` que identifica o módulo nos logs, simulando o comportamento de traces estruturados (estilo CloudWatch). O método `registrar(message, level)` aceita os níveis padrão do Python (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`).
+
+**Cobertura de logs nos services:**
+
+| Service | Evento | Nível |
+|---|---|---|
+| `payment_service` | Início do fluxo (method, amount, idempotency_key) | INFO |
+| `payment_service` | Retorno idempotente (payment_id reutilizado) | INFO |
+| `payment_service` | Conflito de idempotência (chave reutilizada com payload diferente) | WARNING |
+| `payment_service` | Payment criado (payment_id, status) | INFO |
+| `payment_service` | Resultado do cálculo (gross, fee, net, nº de recebedores) | DEBUG |
+| `payment_service` | LedgerEntries criadas (count) | DEBUG |
+| `payment_service` | OutboxEvent criado (type, status) | INFO |
+| `split_calculator` | Parâmetros e resultado de `calculate_payment` | INFO |
+| `split_calculator` | Taxa lida do plano (quando fee_table presente) | DEBUG |
+| `split_calculator` | Total distribuído no split | DEBUG |
+
 ### `OutboxEvent` — padrão Transactional Outbox
 
 Eventos críticos (como `payment_captured`) são persistidos na mesma transação do pagamento. Um worker externo lê os eventos com `status="pending"` e os publica no broker, atualizando para `"published"`. Isso elimina o risco de inconsistência entre banco e mensageria: se a transação falhar, o evento não é criado; se o evento existir, o pagamento foi confirmado.
