@@ -16,7 +16,7 @@ class RecipientRoleEnum(enum.Enum):
     Membros:
         PRODUCER   = ("producer",   "Produtor")   — criador principal do produto.
         AFFILIATE  = ("affiliate",  "Afiliado")   — parceiro de divulgação com comissão.
-        COPRODUTOR = ("coproducer", "Coprodutor") — produtor secundário com participação no split.
+        REVENDA = ("revenda", "Revenda") — terceiro membro com participação no split.
 
     Propriedades:
         code (str): Valor canônico persistido no banco (ex: "producer").
