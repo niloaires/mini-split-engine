@@ -24,14 +24,30 @@ Gerenciamento de dependências via **Poetry**.
 
 ## Configuração de variáveis de ambiente
 
-As variáveis `SECRET_KEY` e `DEBUG` do Django são carregadas a partir do arquivo `.env` via **python-decouple**. Essa escolha foi intencional para demonstrar conhecimento sobre boas práticas no Django em relação à exposição de dados sensíveis — `SECRET_KEY` nunca deve ser exposta no código-fonte nem versionada, e `DEBUG` deve ser explicitamente controlado por ambiente para evitar vazamento de informações em produção.
+As variáveis de ambiente são carregadas a partir do arquivo `.env` via **python-decouple**. Essa escolha foi intencional para demonstrar conhecimento sobre boas práticas no Django em relação à exposição de dados sensíveis — `SECRET_KEY` nunca deve ser exposta no código-fonte nem versionada, e `DEBUG` deve ser explicitamente controlado por ambiente para evitar vazamento de informações em produção.
 
-Crie um arquivo `.env` na raiz do projeto:
+Crie um arquivo `.env` na raiz do projeto a partir do exemplo:
+
+```bash
+cp .env.example .env
+```
+
+Conteúdo do `.env.example`:
 
 ```env
+# Django
 SECRET_KEY=sua-secret-key-aqui
 DEBUG=True
+
+# PostgreSQL
+DB_NAME=mini_split
+DB_USER=mini_split_user
+DB_PASSWORD=mini_split_pass
+DB_HOST=db
+DB_PORT=5432
 ```
+
+> **Nota:** `DB_HOST=db` aponta para o serviço PostgreSQL do Docker Compose. Para rodar localmente sem Docker, altere para `DB_HOST=localhost`.
 
 ---
 
@@ -184,6 +200,42 @@ O desafio não exige hash — a detecção de conflito pode ser feita comparando
 
 ## Como executar
 
+### Com Docker Compose (recomendado)
+
+Sobe o banco PostgreSQL e a aplicação Django em containers:
+
+```bash
+# Copiar e configurar variáveis de ambiente
+cp .env.example .env
+
+# Subir os serviços
+docker compose up --build
+```
+
+A API estará disponível em `http://localhost:8000`.
+
+Para rodar em background:
+
+```bash
+docker compose up -d --build
+```
+
+Para parar os serviços:
+
+```bash
+docker compose down
+```
+
+Para destruir os volumes (apaga os dados do banco):
+
+```bash
+docker compose down -v
+```
+
+### Localmente (sem Docker)
+
+Altere `DB_HOST=localhost` no `.env` e certifique-se de ter um PostgreSQL rodando localmente. Então:
+
 ```bash
 # Instalar dependências
 poetry install
@@ -194,6 +246,33 @@ python manage.py migrate
 # Rodar o servidor
 python manage.py runserver
 ```
+
+---
+
+## Populando a base de dados (seed)
+
+Os commands de seed usam a lib **Faker** para gerar dados fictícios realistas.
+
+```bash
+# Popula tudo com os valores padrão (20 recebedores + 30 pagamentos)
+python manage.py seed
+
+# Ajusta as quantidades
+python manage.py seed --payees 50 --payments 100
+
+# Limpa os dados existentes antes de popular
+python manage.py seed --clear
+
+# Commands individuais
+python manage.py seed_payees --count 30
+python manage.py seed_bbcs --payments 50 --skip-plans
+```
+
+| Command | O que cria |
+|---|---|
+| `seed` | Orquestra `seed_payees` + `seed_bbcs` |
+| `seed_payees` | `Recipient` com dados bancários fictícios |
+| `seed_bbcs` | `Plan` (padrão + premium), `Payment` e `LedgerEntry` |
 
 ---
 
