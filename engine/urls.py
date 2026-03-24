@@ -19,6 +19,7 @@ from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView
 
+from apps.bbcs.urls import checkout_urlpatterns
 from apps.core import views as core_views
 
 urlpatterns = [
@@ -26,5 +27,6 @@ urlpatterns = [
     path("", core_views.SpectacularRapiDocView.as_view(url_name="schema"), name="redoc"),
     path("docs/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/v1/", include("apps.bbcs.urls")),
-    path("api/v1/checkout/", include("apps.bbcs.urls")),
+    path("api/v1/checkout/", include((checkout_urlpatterns, "checkout"))),
+    path("api/v1/", include("apps.payees.urls")),
 ]

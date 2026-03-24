@@ -25,7 +25,6 @@ from drf_spectacular.utils import (
     inline_serializer,
 )
 from rest_framework import mixins, serializers, status
-from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
@@ -258,7 +257,6 @@ class PaymentViewSet(mixins.CreateModelMixin, GenericViewSet):
             ),
         },
     )
-    @action(detail=False, methods=["post"], url_path="quote", url_name="quote")
     def quote(self, request):
         """
         POST /api/v1/checkout/quote

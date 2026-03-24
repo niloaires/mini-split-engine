@@ -27,6 +27,7 @@ from rest_framework import serializers
 
 from apps.audit.models import OutboxEvent
 from apps.bbcs.models import LedgerEntry, Payment, PaymentMethodEnum
+from apps.payees.models import Recipient, RecipientRoleEnum
 
 
 class SplitInputSerializer(serializers.ModelSerializer):
@@ -53,6 +54,21 @@ class SplitInputSerializer(serializers.ModelSerializer):
     class Meta:
         model = LedgerEntry
         fields = ["recipient_id", "role", "percent"]
+
+    def validate_recipient_id(self, value):
+        if not Recipient.objects.filter(pk=value, active=True).exists():
+            raise serializers.ValidationError(
+                f"Recebedor '{value}' não encontrado ou inativo."
+            )
+        return value
+
+    def validate_role(self, value):
+        valid_roles = [r.code for r in RecipientRoleEnum]
+        if value not in valid_roles:
+            raise serializers.ValidationError(
+                f"Role '{value}' inválido. Valores aceitos: {valid_roles}."
+            )
+        return value
 
 
 class PaymentInputSerializer(serializers.Serializer):
@@ -83,10 +99,16 @@ class PaymentInputSerializer(serializers.Serializer):
     splits = SplitInputSerializer(many=True)
 
     def validate_splits(self, splits):
-        """Garante entre 1 e 5 participantes e soma dos percentuais igual a 100."""
+        """Garante entre 1 e 5 participantes, sem repetição e soma dos percentuais igual a 100."""
         if not 1 <= len(splits) <= 5:
             raise serializers.ValidationError(
                 "O split deve ter entre 1 e 5 participantes."
+            )
+
+        recipient_ids = [s["recipient_id"] for s in splits]
+        if len(recipient_ids) != len(set(recipient_ids)):
+            raise serializers.ValidationError(
+                "Cada recebedor deve aparecer apenas uma vez no split."
             )
 
         total_percent = sum(s["percent"] for s in splits)

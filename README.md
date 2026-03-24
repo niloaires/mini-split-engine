@@ -73,7 +73,10 @@ mini-split-engine/
 │   │   └── tests.py              # Testes da calculadora
 │   │
 │   ├── payees/                   # Recebedores do split
-│   │   └── models.py             # Recipient
+│   │   ├── models.py             # Recipient
+│   │   ├── serializers.py        # RecipientSerializer
+│   │   ├── views.py              # RecipientViewSet (list + retrieve)
+│   │   └── urls.py               # Roteamento do app payees
 │   │
 │   └── audit/                    # Auditoria de operações
 │       └── models.py             # OutboxEvent
@@ -156,20 +159,26 @@ As regras financeiras de cada modalidade de cobrança (débito, crédito, parcel
 
 Os dados bancários do recebedor são armazenados como `JSONField` opcional. Em produção, o correto seria uma tabela `BankAccount` separada com FK para `Recipient`, garantindo rastreabilidade completa de mudanças de conta ao longo do tempo (histórico, auditoria, rollback).
 
-### `recipient_id` no split — string livre vs. entidade cadastrada
+### `recipient_id` no split — validação contra cadastro de recebedores
 
-No `SplitInputSerializer`, o campo `recipient_id` é atualmente um `CharField` livre, alinhado com o payload de exemplo do desafio (`"producer_1"`, `"affiliate_9"`). O desafio não exige pré-cadastro de recebedores.
+O `SplitInputSerializer` valida o `recipient_id` contra o `external_id` do model `Recipient` (apenas registros com `active=True`). Recebedores inexistentes ou inativos retornam 400 antes de qualquer cálculo ou persistência.
 
-Em produção, o correto seria validar o `recipient_id` contra o `external_id` do model `Recipient` via `SlugRelatedField`, garantindo que apenas recebedores cadastrados participem de um split:
+O `role` também é validado contra os valores canônicos do `RecipientRoleEnum` (`Industria`, `distributor`, `coproducer`), evitando lançamentos com papéis arbitrários no ledger.
 
-```python
-recipient_id = serializers.SlugRelatedField(
-    slug_field="external_id",
-    queryset=Recipient.objects.all(),
-)
-```
+Além disso, a validação garante que **cada recebedor apareça no máximo uma vez** no array `splits` de uma mesma requisição.
 
-Isso adicionaria integridade referencial na camada de entrada, antes de qualquer cálculo ou persistência.
+### Roteamento — `POST /api/v1/checkout/quote`
+
+O endpoint de simulação é registrado como rota explícita em `bbcs/urls.py` (`checkout_urlpatterns`) e montado separadamente em `engine/urls.py` sob o prefixo `api/v1/checkout/`. Isso evita o double-mount do router que gerava a rota não intencional `/api/v1/checkout/payments/quote/`.
+
+Rotas disponíveis:
+
+| Método | URL | Descrição |
+|---|---|---|
+| `POST` | `/api/v1/payments/` | Confirmar pagamento (com idempotência) |
+| `POST` | `/api/v1/checkout/quote` | Simular cálculo sem persistir |
+| `GET` | `/api/v1/recipients/` | Listar recebedores ativos (paginado) |
+| `GET` | `/api/v1/recipients/{id}/` | Detalhar recebedor pelo ID interno |
 
 ### `OutboxEvent` — padrão Transactional Outbox
 
