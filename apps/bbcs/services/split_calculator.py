@@ -35,6 +35,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
+from apps.core.handlers import LoggerEngine
+
+logger = LoggerEngine(origin="split_calculator")
+
 """"
 Aqui em um contexto de desenvolvimento real, 
 usaria variáveis de ambiente ou configuração centralizada para as taxas fixas,
@@ -174,7 +178,12 @@ def calculate_fee_rate(
         KeyError: Combinação não encontrada no fee_table (quando fornecido).
     """
     if fee_table is not None:
-        return _fee_rate_from_plan(fee_table, payment_method, installments)
+        rate = _fee_rate_from_plan(fee_table, payment_method, installments)
+        logger.registrar(
+            f"Taxa lida do plano | method={payment_method} | installments={installments} | rate={rate}",
+            level="DEBUG",
+        )
+        return rate
 
     if payment_method == "pix":
         return PIX_FEE_RATE
@@ -257,8 +266,18 @@ def calculate_payment(
     fee_rate = calculate_fee_rate(payment_method, installments, fee_table=fee_table)
     platform_fee_amount = _floor(gross_amount * fee_rate)
     net_amount = _quantize(gross_amount - platform_fee_amount)
+    logger.registrar(
+        f"calculate_payment | method={payment_method} | installments={installments} "
+        f"| gross={gross_amount} | fee_rate={fee_rate} | fee={platform_fee_amount} | net={net_amount}",
+        level="INFO",
+    )
 
     receivables = calculate_split(net_amount, splits)
+    logger.registrar(
+        f"Split calculado | net={net_amount} | recebedores={len(receivables)} "
+        f"| total_distribuído={sum(r.amount for r in receivables)}",
+        level="DEBUG",
+    )
 
     return PaymentCalculation(
         gross_amount=gross_amount,

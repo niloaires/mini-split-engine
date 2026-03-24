@@ -29,6 +29,9 @@ from django.db import transaction
 from apps.audit.models import OutboxEvent, OutboxEventTypeEnum
 from apps.bbcs.models import LedgerEntry, Payment, PaymentStatusEnum
 from apps.bbcs.services.split_calculator import SplitInput, calculate_payment
+from apps.core.handlers import LoggerEngine
+
+logger = LoggerEngine(origin="payment_service")
 
 
 class PaymentConflictError(Exception):
@@ -112,14 +115,28 @@ def confirm_payment(
         PaymentConflictError: Mesma chave com payload diferente.
     """
     payload_hash = _compute_payload_hash(validated_data)
+    logger.registrar(
+        f"Iniciando confirm_payment | idempotency_key={idempotency_key} "
+        f"| method={validated_data.get('payment_method')} "
+        f"| amount={validated_data.get('amount')}",
+        level="INFO",
+    )
 
     existing = Payment.allobjects.filter(idempotency_key=idempotency_key).first()
     if existing is not None:
         if existing.idempotency_payload_hash == payload_hash:
+            logger.registrar(
+                f"Retorno idempotente | payment_id={existing.id} | idempotency_key={idempotency_key}",
+                level="INFO",
+            )
             outbox_event = OutboxEvent.allobjects.filter(
                 payload__payment_id=str(existing.id)
             ).first()
             return existing, outbox_event, False
+        logger.registrar(
+            f"Conflito de idempotência | idempotency_key={idempotency_key}",
+            level="WARNING",
+        )
         raise PaymentConflictError(
             "A Idempotency-Key já foi utilizada com um payload diferente. "
             "Use uma nova chave para um pagamento diferente."
@@ -140,6 +157,12 @@ def confirm_payment(
         installments=validated_data["installments"],
         splits=splits,
     )
+    logger.registrar(
+        f"Cálculo concluído | gross={result.gross_amount} "
+        f"| fee={result.platform_fee_amount} | net={result.net_amount} "
+        f"| recebedores={len(result.receivables)}",
+        level="DEBUG",
+    )
 
     with transaction.atomic():
         payment = Payment.objects.create(
@@ -154,6 +177,10 @@ def confirm_payment(
             idempotency_payload_hash=payload_hash,
             payload=_to_json_serializable(validated_data),
         )
+        logger.registrar(
+            f"Payment criado | payment_id={payment.id} | status={payment.status}",
+            level="INFO",
+        )
 
         LedgerEntry.objects.bulk_create([
             LedgerEntry(
@@ -165,10 +192,18 @@ def confirm_payment(
             )
             for r in result.receivables
         ])
+        logger.registrar(
+            f"LedgerEntries criadas | payment_id={payment.id} | count={len(result.receivables)}",
+            level="DEBUG",
+        )
 
         outbox_event = OutboxEvent.objects.create(
             type=OutboxEventTypeEnum.PAYMENT_CAPTURED.code,
             payload=_build_outbox_payload(payment),
+        )
+        logger.registrar(
+            f"OutboxEvent criado | payment_id={payment.id} | type={outbox_event.type} | status={outbox_event.status}",
+            level="INFO",
         )
 
     return payment, outbox_event, True
